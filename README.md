@@ -33,3 +33,16 @@ if raycast_line.collideline(exampleLine.start_point, exampleLine.end_point):
 else:
     pygame.draw.aaline(screen, (255, 255, 0), exampleLine.start_point, exampleLine.end_point)
 ```
+
+## Demo Example
+Just clone this repository and run the main.py to have a basic proof of concept demo.
+##### Controls
+W - Move up
+A - Move Left
+S - Move Down
+D - Move Right
+
+Mouse - Change Raycast target position
+
+![Test Image 1](https://i.imgur.com/r8eKqSm.png)
+
