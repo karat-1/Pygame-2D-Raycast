@@ -36,13 +36,15 @@ else:
 
 ## Demo Example
 Just clone this repository and run the main.py to have a basic proof of concept demo.
-##### Controls
-W - Move up
-A - Move Left
-S - Move Down
-D - Move Right
 
-Mouse - Change Raycast target position
+### Controls
+WASD = Change Position
+
+Mouse Change Raycast target position
+
+LeftMouse Place a Tile
+
+RightMouse Remove a Tile
 
 ![Test Image 1](https://i.imgur.com/r8eKqSm.png)
 
