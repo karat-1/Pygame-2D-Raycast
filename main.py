@@ -20,6 +20,8 @@ vel = 10
 dt = 0
 target_fps = 60
 exampleLine = Line(800, 0, 800, 720)
+pygame.mouse.get_focused()
+collision_point = pygame.Vector2(0,0)
 
 
 class Tile:
@@ -86,7 +88,8 @@ while running:
     raycast_line.update(player.x, player.y, mouse_pos.x, mouse_pos.y)
 
     # shooting the raycast
-    collision_point = raycast_line.raycast(tile_grid, pygame.Vector2(mouse_pos), tile_size)
+    if(pygame.mouse.get_focused()):
+        collision_point = raycast_line.raycast(tile_grid, pygame.Vector2(mouse_pos), tile_size)
 
     screen.fill((30, 29, 57))
 
