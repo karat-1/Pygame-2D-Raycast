@@ -63,7 +63,7 @@ class Line:
         :return: False if no collision or a pygame.Vector2 containing the exact point of collision
         """
         target_cell = target_position / tile_size  # tile size
-        vec_ray_start = pygame.Vector2(self.__x1 / 32, self.__y1 / tile_size)
+        vec_ray_start = pygame.Vector2(self.__x1 / tile_size, self.__y1 / tile_size)
         vec_ray_dir = (target_cell - vec_ray_start)
         vec_ray_dir = vec_ray_dir.normalize()
 
