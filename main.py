@@ -105,11 +105,6 @@ def render_raycasted_view():
         delta_dist_x = 1e30 if raydir.x == 0 else abs(1 / raydir.x)
         delta_dist_y = 1e30 if raydir.y == 0 else abs(1 / raydir.y)
 
-        perp_wall_dist = 0
-
-        step_x = 0
-        step_y = 0
-
         hit = False
         side = None
 
@@ -145,11 +140,7 @@ def render_raycasted_view():
 
         line_height = round(GAME_HEIGHT / perp_wall_dist)
         draw_start = int(-line_height / 2 + GAME_HEIGHT / 2)
-        if draw_start < 0:
-            draw_start = 0
         draw_end = line_height / 2 + GAME_HEIGHT / 2
-        if draw_end >= GAME_HEIGHT:
-            draw_end = GAME_HEIGHT - 1
 
         if side == 0:
             hit_pos = player.y / tile_size + (map_x - player.x / tile_size + (1 - step_x) / 2) / raydir.x * raydir.y
@@ -159,37 +150,15 @@ def render_raycasted_view():
         wall_x = hit_pos - math.floor(hit_pos)
         tex_x = int(wall_x * 64)
 
-        # Beispiel: nur jede 2. Spalte auf entfernten Wänden
-        if line_height < 20:
-            tex_x = (tex_x // 2) * 2
-
         if side == 0 and raydir.x > 0:
             tex_x = 64 - tex_x - 1
         if side == 1 and raydir.y < 0:
             tex_x = 64 - tex_x - 1
 
-
-        if render_color:
-            match tile_grid[map_y][map_x]:
-                case 1:
-                    color = pygame.Color('red')
-                case 2:
-                    color = pygame.Color('green')
-                case 3:
-                    color = pygame.Color('blue')
-                case 4:
-                    color = pygame.Color('white')
-                case _:
-                    color = pygame.Color('yellow')  # default
-            if side == 1:
-                color = pygame.Color(color.r // 2, color.g // 2, color.b // 2)
-            pygame.draw.rect(game_surface, color, pygame.Rect(x, draw_start, 1, abs(draw_start - draw_end)))
-        else:
-            draw_height = int(draw_end - draw_start + 0.5)
-            draw_height = clamp(draw_height, 1, 320)
-            draw_rect = textures.get_scaled_line(tile_grid[map_y][map_x], tex_x, draw_height)
-            line_buffer.append([draw_rect, (x, draw_start)])
-
+        draw_height = int(draw_end - draw_start + 0.5)
+        draw_height = clamp(draw_height, 1, 600)
+        draw_rect = textures.get_scaled_line(tile_grid[map_y][map_x], tex_x, draw_height)
+        line_buffer.append([draw_rect, (x, draw_start)])
 
 
 running = True
@@ -254,7 +223,7 @@ while running:
         render_raycasted_view()
         game_surface.blits(line_buffer)
         line_buffer.clear()
-        pygame.transform.scale_by(game_surface, (4, 4), screen)
+        pygame.transform.scale_by(game_surface, (SCREEN_WIDTH // GAME_WIDTH, SCREEN_HEIGHT // GAME_HEIGHT), screen)
         # screen.blit(game_surface)
 
     dt = clock.tick(0) / 1000.0

@@ -8,7 +8,7 @@ class TextureManager:
         self.texture_list = []
         self.line_cache = {}
         self.scaled_cache = {}  # {texture_index: {column_index: {height: scaled_surface}}}
-        self.__heights_to_precompute = range(320, 0, -1)
+        self.__heights_to_precompute = range(600, 0, -1)
 
         self.size = 64
 
