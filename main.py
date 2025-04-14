@@ -1,4 +1,5 @@
 import math
+
 from textures import TextureManager
 import pygame
 from numba import njit
@@ -7,7 +8,7 @@ import numpy as np
 pygame.init()  # Start Pygame
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
-GAME_WIDTH, GAME_HEIGHT = 320, 180
+GAME_WIDTH, GAME_HEIGHT = 640, 360
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 game_surface = pygame.Surface((GAME_WIDTH, GAME_HEIGHT))  # The low-res surface
 abstract_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -18,7 +19,7 @@ clock.tick(60)
 f_key_pressed = False
 tile_size = 32
 tile_grid = [
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -58,6 +59,7 @@ collision_point = pygame.Vector2(0, 0)
 render_color = False
 textures = TextureManager('resources/wolftextures.png')
 line_buffer = []
+floor_buffer = None
 
 
 def clamp(value, min_value, max_value):
@@ -180,7 +182,56 @@ def raycast_column(
     return tex_x, map_x, map_y, draw_start, draw_height, side
 
 
+@njit(fastmath=True)
+def render_floor_array(screen_width, screen_height, wall_bottom_y,
+                       player_x, player_y, dir_x, dir_y, plane_x, plane_y,
+                       texture, texture_width, texture_height):
+    out = np.zeros((screen_height - wall_bottom_y, screen_width, 3), dtype=np.uint8)
+
+    ray_dir_left_x = dir_x - plane_x
+    ray_dir_left_y = dir_y - plane_y
+    ray_dir_right_x = dir_x + plane_x
+    ray_dir_right_y = dir_y + plane_y
+
+    pos_z = 0.5 * screen_height  # Kamera-Höhe
+
+    for y in range(screen_height - wall_bottom_y):
+        p = y + wall_bottom_y - screen_height / 2
+        if p == 0:
+            continue
+
+        row_distance = pos_z / p
+
+        step_x = row_distance * (ray_dir_right_x - ray_dir_left_x) / screen_width
+        step_y = row_distance * (ray_dir_right_y - ray_dir_left_y) / screen_width
+
+        floor_x = player_x + row_distance * ray_dir_left_x
+        floor_y = player_y + row_distance * ray_dir_left_y
+
+        for x in range(screen_width):
+            cell_x = int(floor_x)
+            cell_y = int(floor_y)
+
+            tx = int((floor_x - cell_x) * texture_width) % texture_width
+            ty = int((floor_y - cell_y) * texture_height) % texture_height
+
+            color = texture[ty, tx]  # shape: (H, W, 3)
+
+            out[y, x, 0] = color[0]
+            out[y, x, 1] = color[1]
+            out[y, x, 2] = color[2]
+
+            floor_x += step_x
+            floor_y += step_y
+
+    return out
+
+
+
+
 def render_raycasted_view():
+    global floor_buffer
+    # render walls
     for x in range(GAME_WIDTH):
         tex_x, map_x, map_y, draw_start, draw_height, side = raycast_column(
             x,
@@ -199,6 +250,20 @@ def render_raycasted_view():
         game_surface.blit(draw_rect, (x, draw_start))
         draw_rect = textures.get_scaled_line(tile_grid[map_y][map_x], tex_x, draw_height)
         line_buffer.append([draw_rect, (x, draw_start)])
+
+    # render floors here!
+    wall_bottom_y = GAME_HEIGHT // 2  # oder ggf. dynamisch aus draw_end
+    floor_texture = textures.get_floor_texture(6)  # -> Muss ein np.array(H, W, 3) sein
+
+    floor_buffer = render_floor_array(
+        GAME_WIDTH, GAME_HEIGHT, wall_bottom_y,
+        player.x / tile_size, player.y / tile_size,
+        player_dir.x, player_dir.y,
+        plane.x, plane.y,
+        floor_texture,
+        floor_texture.shape[1],
+        floor_texture.shape[0]
+    )
 
 
 running = True
@@ -261,6 +326,10 @@ while running:
         # render topdown view for debugging
     elif RENDER_MODE == 1:
         render_raycasted_view()
+
+        if floor_buffer is not None:
+            floor_surf = pygame.surfarray.make_surface(np.transpose(floor_buffer, (1, 0, 2)))
+            game_surface.blit(floor_surf, (0, GAME_HEIGHT // 2))
         game_surface.blits(line_buffer)
         line_buffer.clear()
         pygame.transform.scale_by(game_surface, (SCREEN_WIDTH // GAME_WIDTH, SCREEN_HEIGHT // GAME_HEIGHT), screen)
