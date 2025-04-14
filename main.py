@@ -45,15 +45,16 @@ tile_grid = [
 mouse_pos = None
 player = pygame.Vector2(2 * 32, 2 * 32)
 player_dir = pygame.Vector2(1, 0)
-plane = pygame.Vector2(0, 0.66)
+plane = pygame.Vector2(0, 0.60)
 rot_speed = 1
-vel = 100
+vel = 150
 dt = 0
 target_fps = 60
 pygame.mouse.get_focused()
 collision_point = pygame.Vector2(0, 0)
 render_color = False
 textures = TextureManager('resources/wolftextures.png')
+line_buffer = []
 
 
 def clamp(value, min_value, max_value):
@@ -185,14 +186,10 @@ def render_raycasted_view():
             pygame.draw.rect(game_surface, color, pygame.Rect(x, draw_start, 1, abs(draw_start - draw_end)))
         else:
             draw_height = int(draw_end - draw_start + 0.5)
-            draw_height = clamp(draw_height, 1, 400)
+            draw_height = clamp(draw_height, 1, 320)
             draw_rect = textures.get_scaled_line(tile_grid[map_y][map_x], tex_x, draw_height)
-            game_surface.blit(draw_rect, (x, draw_start))
+            line_buffer.append([draw_rect, (x, draw_start)])
 
-            if x == GAME_WIDTH // 2:
-                print(f"tex_x: {tex_x}, height: {draw_height}, scaled_size: {draw_rect.get_size()}")
-
-        # pygame.draw.line(game_surface, color, (x, draw_start), (x, draw_end), 1)
 
 
 running = True
@@ -255,7 +252,10 @@ while running:
         # render topdown view for debugging
     elif RENDER_MODE == 1:
         render_raycasted_view()
-        pygame.transform.scale_by(game_surface, (2, 2), screen)
+        game_surface.blits(line_buffer)
+        line_buffer.clear()
+        pygame.transform.scale_by(game_surface, (4, 4), screen)
+        # screen.blit(game_surface)
 
     dt = clock.tick(0) / 1000.0
     dt = min(max(0.0001, dt), 1)
