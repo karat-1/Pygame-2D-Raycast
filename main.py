@@ -1,6 +1,8 @@
 import math
 from textures import TextureManager
 import pygame
+from numba import njit
+import numpy as np
 
 pygame.init()  # Start Pygame
 
@@ -41,6 +43,7 @@ tile_grid = [
     [1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ]
+tile_grid_np = np.array(tile_grid, dtype=np.int32)
 
 mouse_pos = None
 player = pygame.Vector2(2 * 32, 2 * 32)
@@ -91,72 +94,109 @@ def render_topdown():
     pygame.transform.scale_by(abstract_surface, (1, 1), screen)
 
 
+@njit
+def raycast_column(
+        x: int,
+        player_x: float,
+        player_y: float,
+        dir_x: float,
+        dir_y: float,
+        plane_x: float,
+        plane_y: float,
+        tile_grid: np.ndarray,
+        tile_size: int,
+        game_width: int,
+        game_height: int
+):
+    camera_x = 2 * x / game_width - 1
+    raydir_x = dir_x + plane_x * camera_x
+    raydir_y = dir_y + plane_y * camera_x
+
+    map_x = int(player_x) // tile_size
+    map_y = int(player_y) // tile_size
+    player_tile_x = player_x / tile_size
+    player_tile_y = player_y / tile_size
+
+    delta_dist_x = 1e30 if raydir_x == 0 else abs(1 / raydir_x)
+    delta_dist_y = 1e30 if raydir_y == 0 else abs(1 / raydir_y)
+
+    if raydir_x < 0:
+        step_x = -1
+        side_dist_x = (player_tile_x - map_x) * delta_dist_x
+    else:
+        step_x = 1
+        side_dist_x = (map_x + 1 - player_tile_x) * delta_dist_x
+
+    if raydir_y < 0:
+        step_y = -1
+        side_dist_y = (player_tile_y - map_y) * delta_dist_y
+    else:
+        step_y = 1
+        side_dist_y = (map_y + 1 - player_tile_y) * delta_dist_y
+
+    hit = False
+    side = 0
+
+    while not hit:
+        if side_dist_x < side_dist_y:
+            side_dist_x += delta_dist_x
+            map_x += step_x
+            side = 0
+        else:
+            side_dist_y += delta_dist_y
+            map_y += step_y
+            side = 1
+
+        if tile_grid[map_y, map_x] != 0:
+            hit = True
+
+    if side == 0:
+        perp_wall_dist = side_dist_x - delta_dist_x
+    else:
+        perp_wall_dist = side_dist_y - delta_dist_y
+
+    line_height = int(game_height / max(perp_wall_dist, 0.0001))
+    draw_start = int(game_height / 2 - line_height / 2)
+    draw_start = max(draw_start, -10000)  # no clamping here
+    draw_end = int(game_height / 2 + line_height / 2)
+    draw_height = int(draw_end - draw_start)
+
+    if side == 0:
+        hit_pos = player_tile_y + (map_x - player_tile_x + (1 - step_x) / 2) / raydir_x * raydir_y
+    else:
+        hit_pos = player_tile_x + (map_y - player_tile_y + (1 - step_y) / 2) / raydir_y * raydir_x
+
+    wall_x = hit_pos - math.floor(hit_pos)
+    tex_x = int(wall_x * 64)
+
+    if side == 0 and raydir_x > 0:
+        tex_x = 64 - tex_x - 1
+    if side == 1 and raydir_y < 0:
+        tex_x = 64 - tex_x - 1
+
+    tex_x = max(0, min(63, tex_x))
+    draw_height = max(1, min(draw_height, 600))
+
+    return tex_x, map_x, map_y, draw_start, draw_height, side
+
+
 def render_raycasted_view():
     for x in range(GAME_WIDTH):
-        camera_x = 2 * x / GAME_WIDTH - 1
-        raydir = pygame.Vector2(player_dir.x + plane.x * camera_x,
-                                player_dir.y + plane.y * camera_x)
-        map_x = int(player.x) // tile_size
-        map_y = int(player.y) // tile_size
-        player_tile = player / tile_size
-
-        side_dist = pygame.Vector2(0, 0)
-
-        delta_dist_x = 1e30 if raydir.x == 0 else abs(1 / raydir.x)
-        delta_dist_y = 1e30 if raydir.y == 0 else abs(1 / raydir.y)
-
-        hit = False
-        side = None
-
-        if raydir.x < 0:
-            step_x = -1
-            side_dist.x = (player_tile.x - map_x) * delta_dist_x
-        else:
-            step_x = 1
-            side_dist.x = (map_x + 1 - player_tile.x) * delta_dist_x
-
-        if raydir.y < 0:
-            step_y = -1
-            side_dist.y = (player_tile.y - map_y) * delta_dist_y
-        else:
-            step_y = 1
-            side_dist.y = (map_y + 1 - player_tile.y) * delta_dist_y
-
-        while not hit:
-            if side_dist.x < side_dist.y:
-                side_dist.x += delta_dist_x
-                map_x += step_x
-                side = 0
-            else:
-                side_dist.y += delta_dist_y
-                map_y += step_y
-                side = 1
-            if tile_grid[map_y][map_x]:
-                hit = True
-        if side == 0:
-            perp_wall_dist = (side_dist.x - delta_dist_x)
-        else:
-            perp_wall_dist = (side_dist.y - delta_dist_y)
-
-        line_height = round(GAME_HEIGHT / perp_wall_dist)
-        draw_start = int(-line_height / 2 + GAME_HEIGHT / 2)
-        draw_end = line_height / 2 + GAME_HEIGHT / 2
-
-        if side == 0:
-            hit_pos = player.y / tile_size + (map_x - player.x / tile_size + (1 - step_x) / 2) / raydir.x * raydir.y
-        else:
-            hit_pos = player.x / tile_size + (map_y - player.y / tile_size + (1 - step_y) / 2) / raydir.y * raydir.x
-
-        wall_x = hit_pos - math.floor(hit_pos)
-        tex_x = int(wall_x * 64)
-
-        if side == 0 and raydir.x > 0:
-            tex_x = 64 - tex_x - 1
-        if side == 1 and raydir.y < 0:
-            tex_x = 64 - tex_x - 1
-
-        draw_height = int(draw_end - draw_start + 0.5)
-        draw_height = clamp(draw_height, 1, 600)
+        tex_x, map_x, map_y, draw_start, draw_height, side = raycast_column(
+            x,
+            player.x,
+            player.y,
+            player_dir.x,
+            player_dir.y,
+            plane.x,
+            plane.y,
+            tile_grid_np,  # muss ein np.ndarray[int32] sein
+            tile_size,
+            GAME_WIDTH,
+            GAME_HEIGHT
+        )
+        draw_rect = textures.get_scaled_line(tile_grid[map_y][map_x], tex_x, draw_height)
+        game_surface.blit(draw_rect, (x, draw_start))
         draw_rect = textures.get_scaled_line(tile_grid[map_y][map_x], tex_x, draw_height)
         line_buffer.append([draw_rect, (x, draw_start)])
 
