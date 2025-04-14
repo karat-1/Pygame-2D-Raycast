@@ -1,27 +1,63 @@
-import pygame
 import math
-from line2d_raycast import Line
+from textures import TextureManager
+import pygame
 
 pygame.init()  # Start Pygame
 
-screen = pygame.display.set_mode((1280, 720))  # Start the screen
+SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
+GAME_WIDTH, GAME_HEIGHT = 320, 180
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+game_surface = pygame.Surface((GAME_WIDTH, GAME_HEIGHT))  # The low-res surface
+abstract_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+RENDER_MODE = 1
 pygame.display.set_caption('2D Raycast Demo')
 clock = pygame.time.Clock()
 clock.tick(60)
-
+f_key_pressed = False
 tile_size = 32
-map_width = 1280 // tile_size
-map_height = 720 // tile_size
-tile_grid = {}
+tile_grid = [
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 3, 0, 3, 0, 3, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 2, 2, 0, 2, 2, 0, 0, 0, 0, 3, 0, 3, 0, 3, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 4, 0, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 4, 0, 0, 0, 0, 5, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 4, 0, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 4, 0, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+]
+
 mouse_pos = None
-raycast_line = Line(0, 0, 0, 0)
-player = pygame.Vector2(0, 0)
-vel = 10
+player = pygame.Vector2(2 * 32, 2 * 32)
+player_dir = pygame.Vector2(1, 0)
+plane = pygame.Vector2(0, 0.66)
+rot_speed = 1
+vel = 100
 dt = 0
 target_fps = 60
-exampleLine = Line(800, 0, 800, 720)
 pygame.mouse.get_focused()
-collision_point = pygame.Vector2(0,0)
+collision_point = pygame.Vector2(0, 0)
+render_color = False
+textures = TextureManager('resources/wolftextures.png')
+
+
+def clamp(value, min_value, max_value):
+    return max(min_value, min(value, max_value))
 
 
 class Tile:
@@ -31,87 +67,201 @@ class Tile:
         self.pos = pos  # as in cell position, not pixel position
 
 
-def create_tile(pos):
-    x_pos = pos[0] // tile_size
-    y_pos = pos[1] // tile_size
-    tile_grid[(x_pos, y_pos)] = Tile((0, 125, 150), (x_pos, y_pos))
+def render_topdown():
+    for y, row in enumerate(tile_grid):
+        for x, column in enumerate(row):
+            color = None
+            match tile_grid[y][x]:
+                case 1:
+                    color = pygame.Color('red')
+                case 2:
+                    color = pygame.Color('green')
+                case 3:
+                    color = pygame.Color('blue')
+                case 4:
+                    color = pygame.Color('white')
+                case _:
+                    color = pygame.Color('yellow')  # default
+            pygame.draw.rect(abstract_surface, color, pygame.Rect(x * 32, y * 32, 32, 32))
+
+    pygame.draw.circle(abstract_surface, (255, 90, 90), player, 16)
+
+    pygame.draw.line(abstract_surface, (0, 0, 0), player, player + player_dir * 200)
+    pygame.transform.scale_by(abstract_surface, (1, 1), screen)
 
 
-def delete_tile(pos):
-    x_pos = pos[0] // tile_size
-    y_pos = pos[1] // tile_size
-    del (tile_grid[(x_pos, y_pos)])
+def render_raycasted_view():
+    for x in range(GAME_WIDTH):
+        camera_x = 2 * x / GAME_WIDTH - 1
+        raydir = pygame.Vector2(player_dir.x + plane.x * camera_x,
+                                player_dir.y + plane.y * camera_x)
+        map_x = int(player.x) // tile_size
+        map_y = int(player.y) // tile_size
+        player_tile = player / tile_size
+
+        side_dist = pygame.Vector2(0, 0)
+
+        delta_dist_x = 1e30 if raydir.x == 0 else abs(1 / raydir.x)
+        delta_dist_y = 1e30 if raydir.y == 0 else abs(1 / raydir.y)
+
+        perp_wall_dist = 0
+
+        step_x = 0
+        step_y = 0
+
+        hit = False
+        side = None
+
+        if raydir.x < 0:
+            step_x = -1
+            side_dist.x = (player_tile.x - map_x) * delta_dist_x
+        else:
+            step_x = 1
+            side_dist.x = (map_x + 1 - player_tile.x) * delta_dist_x
+
+        if raydir.y < 0:
+            step_y = -1
+            side_dist.y = (player_tile.y - map_y) * delta_dist_y
+        else:
+            step_y = 1
+            side_dist.y = (map_y + 1 - player_tile.y) * delta_dist_y
+
+        while not hit:
+            if side_dist.x < side_dist.y:
+                side_dist.x += delta_dist_x
+                map_x += step_x
+                side = 0
+            else:
+                side_dist.y += delta_dist_y
+                map_y += step_y
+                side = 1
+            if tile_grid[map_y][map_x]:
+                hit = True
+        if side == 0:
+            perp_wall_dist = (side_dist.x - delta_dist_x)
+        else:
+            perp_wall_dist = (side_dist.y - delta_dist_y)
+
+        line_height = round(GAME_HEIGHT / perp_wall_dist)
+        draw_start = int(-line_height / 2 + GAME_HEIGHT / 2)
+        if draw_start < 0:
+            draw_start = 0
+        draw_end = line_height / 2 + GAME_HEIGHT / 2
+        if draw_end >= GAME_HEIGHT:
+            draw_end = GAME_HEIGHT - 1
+
+        if side == 0:
+            hit_pos = player.y / tile_size + (map_x - player.x / tile_size + (1 - step_x) / 2) / raydir.x * raydir.y
+        else:
+            hit_pos = player.x / tile_size + (map_y - player.y / tile_size + (1 - step_y) / 2) / raydir.y * raydir.x
+
+        wall_x = hit_pos - math.floor(hit_pos)
+        tex_x = int(wall_x * 64)
+
+        # Beispiel: nur jede 2. Spalte auf entfernten Wänden
+        if line_height < 20:
+            tex_x = (tex_x // 2) * 2
+
+        if side == 0 and raydir.x > 0:
+            tex_x = 64 - tex_x - 1
+        if side == 1 and raydir.y < 0:
+            tex_x = 64 - tex_x - 1
 
 
-for i in range(2, 16):
-    create_tile((i * tile_size, 64))
-    create_tile((i * tile_size, 512))
+        if render_color:
+            match tile_grid[map_y][map_x]:
+                case 1:
+                    color = pygame.Color('red')
+                case 2:
+                    color = pygame.Color('green')
+                case 3:
+                    color = pygame.Color('blue')
+                case 4:
+                    color = pygame.Color('white')
+                case _:
+                    color = pygame.Color('yellow')  # default
+            if side == 1:
+                color = pygame.Color(color.r // 2, color.g // 2, color.b // 2)
+            pygame.draw.rect(game_surface, color, pygame.Rect(x, draw_start, 1, abs(draw_start - draw_end)))
+        else:
+            draw_height = int(draw_end - draw_start + 0.5)
+            draw_height = clamp(draw_height, 1, 400)
+            draw_rect = textures.get_scaled_line(tile_grid[map_y][map_x], tex_x, draw_height)
+            game_surface.blit(draw_rect, (x, draw_start))
 
-for i in range(2, 16):
-    create_tile((64, i * tile_size))
-    create_tile((496, i * tile_size))
+            if x == GAME_WIDTH // 2:
+                print(f"tex_x: {tex_x}, height: {draw_height}, scaled_size: {draw_rect.get_size()}")
 
-tile_grid_old = len(tile_grid)
+        # pygame.draw.line(game_surface, color, (x, draw_start), (x, draw_end), 1)
+
+
 running = True
 while running:
     for event in pygame.event.get():
-        if event.type == pygame.QUIT:  # The user closed the window!
+        if event.type == pygame.QUIT:
             running = False  # Stop running
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                mouse_pos = pygame.mouse.get_pos()
-                create_tile(mouse_pos)
-            if event.button == 3:
-                mouse_pos = pygame.mouse.get_pos()
-                try:
-                    delete_tile(mouse_pos)
-                except Exception as e:
-                    print(e)
 
+    move_speed = vel * dt
+    rt_speed = rot_speed * dt
     # Basic code for input
     keys = pygame.key.get_pressed()
-    mouse_pos = (pygame.Vector2(pygame.mouse.get_pos()))
-    if keys[pygame.K_a]:
-        player.x -= vel * dt
-
     if keys[pygame.K_d]:
-        player.x += vel * dt
+        old_dir_x = player_dir.x
+        player_dir.x = player_dir.x * math.cos(rt_speed) - player_dir.y * math.sin(rt_speed)
+        player_dir.y = old_dir_x * math.sin(rt_speed) + player_dir.y * math.cos(rt_speed)
+        old_plane = plane
+        plane.x = plane.x * math.cos(rt_speed) - plane.y * math.sin(rt_speed)
+        plane.y = old_plane.x * math.sin(rt_speed) + plane.y * math.cos(rt_speed)
+
+    if keys[pygame.K_a]:
+        old_dir_x = player_dir.x
+        player_dir.x = player_dir.x * math.cos(-rt_speed) - player_dir.y * math.sin(-rt_speed)
+        player_dir.y = old_dir_x * math.sin(-rt_speed) + player_dir.y * math.cos(-rt_speed)
+        old_plane = plane
+        plane.x = plane.x * math.cos(-rt_speed) - plane.y * math.sin(-rt_speed)
+        plane.y = old_plane.x * math.sin(-rt_speed) + plane.y * math.cos(-rt_speed)
 
     if keys[pygame.K_w]:
-        player.y -= vel * dt
+        next_x = player.x + player_dir.x * move_speed
+        next_y = player.y + player_dir.y * move_speed
+
+        # X-Kollision (Y bleibt gleich)
+        if not tile_grid[int(player.y) // tile_size][int(next_x) // tile_size]:
+            player.x = next_x
+
+        # Y-Kollision (X ist ggf. schon aktualisiert)
+        if not tile_grid[int(next_y) // tile_size][int(player.x) // tile_size]:
+            player.y = next_y
 
     if keys[pygame.K_s]:
-        player.y += vel * dt
+        next_x = player.x - player_dir.x * move_speed
+        next_y = player.y - player_dir.y * move_speed
 
-    # the line object needs to be updated before usage.
-    # Does not need to be each frame but before calling its methods
-    raycast_line.update(player.x, player.y, mouse_pos.x, mouse_pos.y)
+        if not tile_grid[int(player.y) // tile_size][int(next_x) // tile_size]:
+            player.x = next_x
 
-    # shooting the raycast
-    if(pygame.mouse.get_focused()):
-        collision_point = raycast_line.raycast(tile_grid, pygame.Vector2(mouse_pos), tile_size)
+        if not tile_grid[int(next_y) // tile_size][int(player.x) // tile_size]:
+            player.y = next_y
 
-    screen.fill((30, 29, 57))
-
-    for tile in tile_grid:
-        tile = tile_grid[tile]
-        pygame.draw.rect(screen, tile.color,
-                         pygame.Rect(tile.pos[0] * tile_size, tile.pos[1] * tile_size, tile_size, tile_size))
-    pygame.draw.circle(screen, (255, 90, 90), player, 16)
-
-    # checking if there is anything in our collision point
-    if collision_point:
-        pygame.draw.circle(screen, (255, 255, 255), collision_point, 8, 1)
-
-    # checking if we intersect with the red example line
-    if raycast_line.collideline(exampleLine.start_point, exampleLine.end_point):
-        pygame.draw.aaline(screen, (255, 0, 0), exampleLine.start_point, exampleLine.end_point)
+    if keys[pygame.K_f]:
+        if not f_key_pressed:
+            RENDER_MODE = not RENDER_MODE
+            f_key_pressed = True
     else:
-        pygame.draw.aaline(screen, (255, 255, 0), exampleLine.start_point, exampleLine.end_point)
+        f_key_pressed = False
 
-    pygame.draw.aaline(screen, (0, 255, 0), raycast_line.start_point, raycast_line.end_point)
+    if RENDER_MODE == 0:
+        render_topdown()
+        # render topdown view for debugging
+    elif RENDER_MODE == 1:
+        render_raycasted_view()
+        pygame.transform.scale_by(game_surface, (2, 2), screen)
 
-    dt = clock.tick(65) * .001 * target_fps
+    dt = clock.tick(0) / 1000.0
+    dt = min(max(0.0001, dt), 1)
     pygame.display.update()
+    abstract_surface.fill('#124e89')
+    game_surface.fill('#000000')
+    pygame.display.set_caption(f'Raycasting - {int(clock.get_fps())}fps')
 
 pygame.quit()  # Close the window
